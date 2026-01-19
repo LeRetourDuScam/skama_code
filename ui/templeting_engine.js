@@ -37,7 +37,7 @@ export class TemplateEngine {
   }
 
   #flush_events() {
-    $("body").unbind();
+    $("body").off();
     return this;
   }
 

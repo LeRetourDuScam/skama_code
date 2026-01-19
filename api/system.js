@@ -93,10 +93,13 @@ export class SystemBuilder {
     }
 
     static get(name, callback, error_handler) {
-        const url = `${SpaceTraders.host}/systems/${name}/`;
+        const url = `${SpaceTraders.host}/systems/${name}`;
         $.ajax({
             url: url,
             method: "GET",
+            headers: {
+                "Accept": "application/json"
+            },
             success: (reponse) => {
                 let system = new System(reponse.data);
                 callback(system);
@@ -108,7 +111,7 @@ export class SystemBuilder {
     }
 
     static list(limit, page, callback, systems = []) {
-        const url = `${SpaceTraders.host}/systems/`
+        const url = `${SpaceTraders.host}/systems`
         $.ajax({
             url: url,
             method: "GET",
@@ -116,11 +119,18 @@ export class SystemBuilder {
                 limit: limit,
                 page: page
             },
+            headers: {
+                "Accept": "application/json"
+            },
             success: (reponse) => {
                 reponse.data.forEach(system => {
                     systems.push(new System(system));
                 });
                 callback(systems, reponse.meta);
+            },
+            error: (err) => {
+                console.error("Error listing systems:", err);
+                callback([], null);
             }
         });
     }

@@ -13,8 +13,11 @@ export class Agent {
   }
 
   get_agent_system() {
+    console.log("Agent HQ:", this.hq);
     let metaSystem = this.hq.split("-");
-    return metaSystem[0] + "-" + metaSystem[1];
+    let systemName = metaSystem[0] + "-" + metaSystem[1];
+    console.log("Extracted system:", systemName);
+    return systemName;
   }
 }
 
@@ -29,15 +32,24 @@ export class AgentBuilder {
     $.ajax({
       url: url,
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
       processData: false,
       data: `{\n  "faction": "${faction}",\n  "symbol": "${symbol}"}`,
+      beforeSend: function(xhr) {
+        // Explicitly remove Authorization header for registration
+        xhr.setRequestHeader('Authorization', '');
+      },
       success: (reponse) => {
         let agent = new Agent(reponse.data.agent, reponse.data.token);
         callback(agent);
       },
       error: (err) => {
-        error_handler(["Name already took."]);
+        console.error('Registration error:', err);
+        const errorMsg = err.responseJSON?.error?.message || "Registration failed. Name might already be taken.";
+        error_handler([errorMsg]);
       },
     });
   }

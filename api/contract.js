@@ -66,8 +66,8 @@ export class Contract {
         });
     }
 
-    accept(callback) {
-        console.log("Access");
+    accept(callback, error_handler) {
+        console.log("Accepting contract:", this.id);
         const url = `${SpaceTraders.host}/my/contracts/${this.id}/accept`
         $.ajax({
             url: url,
@@ -77,11 +77,22 @@ export class Contract {
                 Accept: "application/json",
                 Authorization: `Bearer ${My.agent.token}`,
             },
+            data: JSON.stringify({}),
             success: (reponse) => {
+                this.accepted = true;
                 callback(reponse);
             },
             error: (err) => {
-                //error_handler("Contract not found");
+                console.error("Failed to accept contract:", err);
+                if (error_handler) {
+                    error_handler(err);
+                } else {
+                    let errorMsg = "Contract acceptance failed";
+                    if (err.responseJSON && err.responseJSON.error) {
+                        errorMsg = err.responseJSON.error.message;
+                    }
+                    console.error(errorMsg);
+                }
             }
         });
 

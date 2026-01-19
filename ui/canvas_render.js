@@ -26,26 +26,32 @@ export class CanvasRenderer {
       selectacle: false,
       name: "",
       update: null,
+      scale: 1.0,
+      planetData: null
     }) {
     let canvas = this;
     fabric.Image.fromURL(path, function (img_planet) {
-      console.log(options.name, pos);
       img_planet.set({
         selectable: options.selectable,
         left: pos.x,
         top: pos.y,
         name: options.name,
         update: options.update,
+        scaleX: options.scale || 1.0,
+        scaleY: options.scale || 1.0,
+        planetData: options.planetData,
+        originX: 'center',
+        originY: 'center'
       });
-      canvas.canvas_obj.push(img_planet);
+      canvas.canvas_objs.push(img_planet);
       canvas.add(img_planet);
     });
   }
 
   canvas_pos(position) {
     return {
-      x: position.x + this.canvas.width / 2,
-      y: position.y + this.canvas.height / 2,
+      x: (position.x * 2) + this.canvas.width / 2,
+      y: (position.y * 2) + this.canvas.height / 2,
     };
   }
   rel_pos(position) {
