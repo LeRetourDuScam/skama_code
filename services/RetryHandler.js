@@ -35,10 +35,12 @@ export async function withRetry(operation, config = {}) {
         } catch (error) {
             lastError = error;
 
+            // Extraire le code de statut HTTP
             const status = error.status || 
                           error.responseJSON?.error?.code ||
                           (error.xhr && error.xhr.status);
 
+            // Vérifier si l'erreur est retryable
             const isRetryableStatus = status && retryableStatuses.includes(status);
             const isRetryableError = retryableErrors.some(e => 
                 error.message?.includes(e) || error.code === e
@@ -46,10 +48,12 @@ export async function withRetry(operation, config = {}) {
 
             const isRetryable = isRetryableStatus || isRetryableError;
 
+            // Si pas retryable ou dernier essai, lancer l'erreur
             if (!isRetryable || attempt === maxRetries) {
                 throw error;
             }
 
+            // Calculer le délai avec backoff exponentiel + jitter
             const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
             const jitter = Math.random() * 0.3 * delay;
             const totalDelay = delay + jitter;
@@ -59,6 +63,7 @@ export async function withRetry(operation, config = {}) {
                 `Status: ${status || 'N/A'}. Retrying in ${Math.round(totalDelay)}ms...`
             );
 
+            // Attendre avant de réessayer
             await new Promise(resolve => setTimeout(resolve, totalDelay));
         }
     }

@@ -9,7 +9,7 @@ import { spaceTradersClient } from './SpaceTradersClient.js';
  */
 export class TradingBot {
     constructor() {
-        this.marketData = new Map(); 
+        this.marketData = new Map(); // waypointSymbol -> { market, timestamp }
         this.tradeHistory = [];
         this.isRunning = false;
         this.listeners = new Set();
@@ -21,6 +21,7 @@ export class TradingBot {
     async scanMarkets(systemSymbol) {
         this._log(`Scanning markets in system ${systemSymbol}...`);
         
+        // Récupérer tous les waypoints avec des marchés
         const allWaypoints = [];
         let page = 1;
         let hasMore = true;
@@ -36,6 +37,7 @@ export class TradingBot {
 
         this._log(`Found ${allWaypoints.length} waypoints with marketplaces`);
 
+        // Scanner chaque marché
         for (const waypoint of allWaypoints) {
             try {
                 const market = await spaceTradersClient.getMarket(
@@ -74,6 +76,7 @@ export class TradingBot {
                 const sellMarket = sellData.market;
                 if (!sellMarket.tradeGoods) continue;
 
+                // Comparer les prix
                 for (const buyGood of buyMarket.tradeGoods) {
                     const sellGood = sellMarket.tradeGoods.find(
                         g => g.symbol === buyGood.symbol
@@ -101,6 +104,7 @@ export class TradingBot {
             }
         }
 
+        // Trier par score (profit * volume)
         return routes
             .sort((a, b) => b.score - a.score)
             .slice(0, maxRoutes);
@@ -117,9 +121,11 @@ export class TradingBot {
         try {
             this._log(`Starting trade: ${route.good} from ${route.buyWaypoint} to ${route.sellWaypoint}`);
 
+            // 1. Récupérer les infos du vaisseau
             const shipResponse = await spaceTradersClient.getShip(shipSymbol);
             const ship = shipResponse.data;
 
+            // 2. Naviguer vers le point d'achat si nécessaire
             if (ship.nav.waypointSymbol !== route.buyWaypoint) {
                 if (ship.nav.status === 'DOCKED') {
                     await spaceTradersClient.orbitShip(shipSymbol);
@@ -129,6 +135,7 @@ export class TradingBot {
                 await this._waitForArrival(navResponse.data.nav);
             }
 
+            // 3. Docker et acheter
             await spaceTradersClient.dockShip(shipSymbol);
             
             const cargoSpace = ship.cargo.capacity - ship.cargo.units;
@@ -148,6 +155,7 @@ export class TradingBot {
             );
             const totalBuyCost = buyResponse.data.transaction.totalPrice;
 
+            // 4. Naviguer vers le point de vente
             await spaceTradersClient.orbitShip(shipSymbol);
             this._log(`Navigating to ${route.sellWaypoint}...`);
             const sellNavResponse = await spaceTradersClient.navigateShip(
@@ -156,6 +164,7 @@ export class TradingBot {
             );
             await this._waitForArrival(sellNavResponse.data.nav);
 
+            // 5. Docker et vendre
             await spaceTradersClient.dockShip(shipSymbol);
             this._log(`Selling ${unitsToBuy} units of ${route.good}...`);
             const sellResponse = await spaceTradersClient.sellCargo(
@@ -165,9 +174,11 @@ export class TradingBot {
             );
             const totalSellPrice = sellResponse.data.transaction.totalPrice;
 
+            // 6. Calculer le profit
             profit = totalSellPrice - totalBuyCost;
             unitsSold = unitsToBuy;
 
+            // Enregistrer dans l'historique
             this.tradeHistory.push({
                 timestamp: Date.now(),
                 shipSymbol,
@@ -205,9 +216,9 @@ export class TradingBot {
      */
     async startAutoTrading(shipSymbol, systemSymbol, options = {}) {
         const {
-            minProfitMargin = 10,  
+            minProfitMargin = 10,  // Minimum 10% de marge
             maxTradesPerRun = 10,
-            intervalMs = 60000   
+            intervalMs = 60000     // 1 minute entre les runs
         } = options;
 
         this.isRunning = true;
@@ -215,8 +226,10 @@ export class TradingBot {
 
         while (this.isRunning) {
             try {
+                // 1. Scanner les marchés
                 await this.scanMarkets(systemSymbol);
 
+                // 2. Trouver les meilleures routes
                 const routes = this.findBestTradeRoutes(maxTradesPerRun);
                 const profitableRoutes = routes.filter(
                     r => parseFloat(r.profitMargin) >= minProfitMargin
@@ -225,11 +238,13 @@ export class TradingBot {
                 if (profitableRoutes.length === 0) {
                     this._log('No profitable routes found. Waiting...');
                 } else {
+                    // 3. Exécuter le meilleur trade
                     const bestRoute = profitableRoutes[0];
                     this._log(`Best route: ${bestRoute.good} with ${bestRoute.profitMargin} margin`);
                     await this.executeTrade(shipSymbol, bestRoute);
                 }
 
+                // 4. Attendre avant le prochain run
                 if (this.isRunning) {
                     await new Promise(resolve => setTimeout(resolve, intervalMs));
                 }

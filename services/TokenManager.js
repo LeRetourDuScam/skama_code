@@ -25,6 +25,8 @@ export class TokenManager {
 
         this._token = token;
 
+        // Encoder en base64 (pas une vraie encryption, juste obfuscation basique)
+        // En production, utilisez une vraie solution de sécurité
         const encoded = this._encode(token);
 
         if (remember) {
@@ -45,12 +47,21 @@ export class TokenManager {
      * @returns {string|null}
      */
     getToken() {
-        if (this._token) {
+        // TOUJOURS vérifier l'ancien système en premier (utilisé par Auth.login)
+        // C'est la source de vérité car Auth.login() écrit directement ici
+        const legacyToken = localStorage.getItem('token');
+        
+        if (legacyToken) {
+            // Toujours utiliser le legacy token s'il existe (source de vérité)
+            this._token = legacyToken;
             return this._token;
         }
-
+        
+        // Si pas de legacy token, vérifier le nouveau système
+        // Vérifier sessionStorage
         let encoded = sessionStorage.getItem(this.STORAGE_KEY);
         
+        // Puis localStorage si "remember me" était coché
         if (!encoded && localStorage.getItem(this.REMEMBER_KEY)) {
             encoded = localStorage.getItem(this.STORAGE_KEY);
         }
@@ -65,7 +76,9 @@ export class TokenManager {
                 return null;
             }
         }
-
+        
+        // Aucun token trouvé
+        this._token = null;
         return null;
     }
 
@@ -84,6 +97,9 @@ export class TokenManager {
         sessionStorage.removeItem(this.STORAGE_KEY);
         localStorage.removeItem(this.STORAGE_KEY);
         localStorage.removeItem(this.REMEMBER_KEY);
+        // Supprimer aussi l'ancien format
+        localStorage.removeItem('token');
+        sessionStorage.removeItem('token');
         this._notifyListeners('clear');
     }
 
@@ -136,6 +152,7 @@ export class TokenManager {
      * Pour une vraie sécurité, utilisez un backend ou Web Crypto API
      */
     _encode(token) {
+        // Simple base64 + reverse pour obfuscation légère
         return btoa(token.split('').reverse().join(''));
     }
 
@@ -174,6 +191,8 @@ export class TokenManager {
     }
 }
 
+// Instance singleton
 export const tokenManager = new TokenManager();
 
+// Migration automatique au chargement
 tokenManager.migrateFromLegacy();

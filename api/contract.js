@@ -11,15 +11,15 @@ export class Contract {
         this.faction = data.factionSymbol;
         this.type = data.type;
         this.accepted = data.accepted;
+        this.fulfilled = data.fulfilled;
         this.expiration = data.expiration;
         this.deadline = data.deadlineToAccept;
         this.terms = data.terms;
         this.paymentAccepted = data.terms.payment.onAccepted;
         this.paymentFulfill = data.terms.payment.onFulfilled;
-        this.tradeSymbol = data.terms.deliver[0].tradeSymbol;
-        this.destination = data.terms.deliver[0].destinationSymbol;
-
-
+        this.deliver = data.terms.deliver || [];
+        this.tradeSymbol = data.terms.deliver[0]?.tradeSymbol || 'N/A';
+        this.destination = data.terms.deliver[0]?.destinationSymbol || 'N/A';
     }
 
     static get(id, callback, error_handler) {
@@ -121,8 +121,7 @@ export class Contract {
 
     }
 
-    static fulfill(contractId, token) {
-
+    static fulfill(contractId, callback, error_handler) {
         const url = `${SpaceTraders.host}/my/contracts/${contractId}/fulfill`
         $.ajax({
             url: url,
@@ -133,14 +132,40 @@ export class Contract {
                 Authorization: `Bearer ${My.agent.token}`,
             },
             success: (reponse) => {
-                callback(reponse);
+                if (callback) callback(reponse);
             },
             error: (err) => {
-                error_handler("Contract not found");
+                if (error_handler) error_handler(err);
             }
         });
+    }
 
-
+    /**
+     * Negotiate a new contract at a faction HQ
+     * Ship must be docked at a faction headquarters waypoint
+     */
+    static negotiate(shipSymbol, callback, error_handler) {
+        const url = `${SpaceTraders.host}/my/ships/${shipSymbol}/negotiate/contract`
+        $.ajax({
+            url: url,
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: "application/json",
+                Authorization: `Bearer ${My.agent.token}`,
+            },
+            data: JSON.stringify({}),
+            success: (reponse) => {
+                if (callback) callback(new Contract(reponse.data.contract));
+            },
+            error: (err) => {
+                let errorMsg = "Failed to negotiate contract";
+                if (err.responseJSON && err.responseJSON.error) {
+                    errorMsg = err.responseJSON.error.message;
+                }
+                if (error_handler) error_handler(errorMsg);
+            }
+        });
     }
 
 }

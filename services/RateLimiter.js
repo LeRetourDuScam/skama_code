@@ -10,7 +10,7 @@ export class RateLimiter {
         this.queue = [];
         this.isProcessing = false;
         this.lastRequestTime = 0;
-        this.minInterval = 1000 / requestsPerSecond;
+        this.minInterval = 1000 / requestsPerSecond; // 500ms entre chaque requête
         this.requestCount = 0;
         this.listeners = new Set();
     }
@@ -45,6 +45,7 @@ export class RateLimiter {
             const now = Date.now();
             const timeSinceLastRequest = now - this.lastRequestTime;
 
+            // Attendre si nécessaire pour respecter le rate limit
             if (timeSinceLastRequest < this.minInterval) {
                 await this._sleep(this.minInterval - timeSinceLastRequest);
             }
@@ -118,6 +119,18 @@ export class RateLimiter {
         }
         this._notifyListeners();
     }
+
+    /**
+     * Réinitialise complètement le rate limiter
+     */
+    reset() {
+        this.clearQueue();
+        this.requestCount = 0;
+        this.lastRequestTime = 0;
+        this.isProcessing = false;
+        this._notifyListeners();
+    }
 }
 
+// Instance singleton
 export const rateLimiter = new RateLimiter(2);

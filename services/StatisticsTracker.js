@@ -99,7 +99,7 @@ export class StatisticsTracker {
     recordContractPayment(contractId, paymentType, amount) {
         return this.recordTransaction('CONTRACT_PAYMENT', {
             contractId,
-            paymentType, 
+            paymentType, // 'onAccepted' ou 'onFulfilled'
             totalPrice: amount
         });
     }
@@ -114,6 +114,17 @@ export class StatisticsTracker {
             units,
             waypoint
         });
+    }
+
+    /**
+     * Réinitialise toutes les statistiques (pour déconnexion)
+     */
+    reset() {
+        this.transactions = [];
+        this.startCredits = 0;
+        this.sessionStart = Date.now();
+        localStorage.removeItem(this.STORAGE_KEY);
+        console.log('[StatisticsTracker] Statistics reset');
     }
 
     /**
@@ -414,4 +425,5 @@ export class StatisticsTracker {
     }
 }
 
+// Instance singleton
 export const statisticsTracker = new StatisticsTracker();

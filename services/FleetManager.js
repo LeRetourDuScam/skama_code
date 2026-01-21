@@ -7,6 +7,8 @@ import { spaceTradersClient } from './SpaceTradersClient.js';
  * Gestionnaire de flotte intelligent pour SpaceTraders
  * Gère l'assignation de rôles, les tâches et la coordination des vaisseaux
  */
+
+// Types de rôles
 export const ShipRole = {
     MINER: 'MINER',
     TRADER: 'TRADER',
@@ -28,7 +30,7 @@ export const TaskStatus = {
 
 export class FleetManager {
     constructor() {
-        this.fleet = new Map(); 
+        this.fleet = new Map(); // shipSymbol -> ManagedShip
         this.taskQueue = [];
         this.completedTasks = [];
         this.isProcessing = false;
@@ -59,6 +61,7 @@ export class FleetManager {
                     }
                 });
             } else {
+                // Mettre à jour les données du vaisseau
                 const managed = this.fleet.get(ship.symbol);
                 managed.ship = ship;
             }
@@ -75,6 +78,7 @@ export class FleetManager {
         const mounts = ship.mounts || [];
         const modules = ship.modules || [];
         
+        // Vérifier les équipements
         const hasMiningLaser = mounts.some(m => 
             m.symbol.includes('MINING') || m.symbol.includes('LASER')
         );
@@ -84,11 +88,13 @@ export class FleetManager {
             m.symbol.includes('TURRET') || m.symbol.includes('MISSILE')
         );
         
+        // Vérifier le type de frame
         const frameType = ship.frame?.symbol || '';
         const isMiningShip = frameType.includes('MINER');
         const isHauler = frameType.includes('HAULER') || frameType.includes('FREIGHTER');
         const isExplorer = frameType.includes('EXPLORER') || frameType.includes('PROBE');
         
+        // Déterminer le rôle
         if (hasMiningLaser || isMiningShip) return ShipRole.MINER;
         if (hasSurveyor) return ShipRole.SURVEYOR;
         if (isExplorer || hasSensor) return ShipRole.EXPLORER;
@@ -167,7 +173,7 @@ export class FleetManager {
             type: 'MINE',
             shipSymbol,
             target: asteroidWaypoint,
-            targetCargo, 
+            targetCargo, // null = jusqu'à plein
             priority,
             status: TaskStatus.PENDING,
             createdAt: Date.now(),
@@ -260,9 +266,11 @@ export class FleetManager {
                 this._notifyListeners('task_failed', task);
             }
 
+            // Déplacer vers completedTasks
             this.taskQueue = this.taskQueue.filter(t => t.id !== task.id);
             this.completedTasks.push(task);
 
+            // Garder seulement les 100 dernières tâches complétées
             if (this.completedTasks.length > 100) {
                 this.completedTasks = this.completedTasks.slice(-100);
             }
@@ -300,7 +308,7 @@ export class FleetManager {
         const ship = shipResponse.data;
 
         if (ship.nav.waypointSymbol === target) {
-            return; 
+            return; // Déjà à destination
         }
 
         if (ship.nav.status === 'DOCKED') {
@@ -317,8 +325,10 @@ export class FleetManager {
     async _executeMiningTask(task) {
         const { shipSymbol, target, targetCargo } = task;
         
+        // Naviguer vers l'astéroïde
         await this._executeNavigationTask({ shipSymbol, target });
 
+        // Mettre en orbite si nécessaire
         const shipResponse = await spaceTradersClient.getShip(shipSymbol);
         let ship = shipResponse.data;
 
@@ -326,6 +336,7 @@ export class FleetManager {
             await spaceTradersClient.orbitShip(shipSymbol);
         }
 
+        // Miner jusqu'à plein ou targetCargo atteint
         while (true) {
             const currentShip = (await spaceTradersClient.getShip(shipSymbol)).data;
             const cargoFull = currentShip.cargo.units >= currentShip.cargo.capacity;
@@ -335,6 +346,7 @@ export class FleetManager {
                 break;
             }
 
+            // Attendre le cooldown si nécessaire
             if (currentShip.cooldown?.remainingSeconds > 0) {
                 await new Promise(resolve => 
                     setTimeout(resolve, currentShip.cooldown.remainingSeconds * 1000 + 500)
@@ -347,6 +359,7 @@ export class FleetManager {
                 this._log(`Extracted ${extractResponse.data.extraction.yield.units} ${extractResponse.data.extraction.yield.symbol}`);
             } catch (error) {
                 if (error.code === 4000) {
+                    // Cooldown not expired, wait and retry
                     await new Promise(resolve => setTimeout(resolve, 5000));
                 } else {
                     throw error;
@@ -361,10 +374,13 @@ export class FleetManager {
     async _executeContractDeliveryTask(task) {
         const { shipSymbol, contractId, tradeSymbol, destination, units } = task;
         
+        // Naviguer vers la destination
         await this._executeNavigationTask({ shipSymbol, target: destination });
 
+        // Docker
         await spaceTradersClient.dockShip(shipSymbol);
 
+        // Livrer
         const deliverResponse = await spaceTradersClient.deliverContract(
             contractId,
             shipSymbol,

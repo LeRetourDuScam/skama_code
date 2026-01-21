@@ -1,6 +1,10 @@
 // Copyright © 2023 Entreprise SkamKraft
 'use strict';
 
+/**
+ * Service de cache pour les données API SpaceTraders
+ * Réduit le nombre d'appels API et améliore les performances
+ */
 export class CacheService {
     constructor() {
         this.cache = new Map();
@@ -11,19 +15,23 @@ export class CacheService {
             invalidations: 0
         };
 
+        // TTL par défaut selon le type de données (en ms)
         this.defaultTTLs = {
-            'systems': 3600000,     
-            'waypoints': 1800000,    
-            'markets': 60000,        
-            'shipyards': 300000,     
-            'agent': 30000,         
-            'contracts': 60000,      
-            'ships': 10000,          
-            'factions': 86400000,   
-            'default': 60000         
+            'systems': 3600000,      // 1 heure - données quasi-statiques
+            'waypoints': 1800000,    // 30 min - changent rarement
+            'markets': 60000,        // 1 min - prix volatiles
+            'shipyards': 300000,     // 5 min
+            'agent': 30000,          // 30 sec - crédits changent souvent
+            'contracts': 60000,      // 1 min
+            'ships': 10000,          // 10 sec - position/fuel changent
+            'factions': 86400000,    // 24h - données statiques
+            'default': 60000         // 1 min par défaut
         };
     }
 
+    /**
+     * Génère une clé de cache unique
+     */
     generateKey(category, ...identifiers) {
         return `${category}:${identifiers.join(':')}`;
     }
@@ -60,6 +68,8 @@ export class CacheService {
             this.stats.misses++;
             return null;
         }
+
+        // Vérifier si l'entrée est expirée
         if (Date.now() - entry.timestamp > entry.ttl) {
             this.cache.delete(key);
             this.stats.misses++;
@@ -150,21 +160,26 @@ export class CacheService {
      * @param {string} category - Catégorie de données
      */
     async getOrFetch(key, fetchFn, category = 'default') {
+        // Vérifier le cache d'abord
         const cached = this.get(key);
         if (cached !== null) {
             return cached;
         }
 
+        // Récupérer les données
         const data = await fetchFn();
         
+        // Mettre en cache
         this.set(key, data, category);
         
         return data;
     }
 }
 
+// Instance singleton
 export const cacheService = new CacheService();
 
+// Nettoyage automatique toutes les 5 minutes
 setInterval(() => {
     const cleaned = cacheService.cleanup();
     if (cleaned > 0) {

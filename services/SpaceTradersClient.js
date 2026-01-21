@@ -29,6 +29,7 @@ export class SpaceTradersClient {
             requiresAuth = true
         } = options;
 
+        // Gestion du cache pour les GET
         if (method === 'GET' && cacheConfig) {
             const cacheKey = cacheService.generateKey(
                 cacheConfig.category,
@@ -42,11 +43,13 @@ export class SpaceTradersClient {
             }
         }
 
+        // Récupérer le token
         const token = tokenManager.getToken();
         if (requiresAuth && !token) {
             throw new Error('Authentication required. Please login first.');
         }
 
+        // Construire les headers
         const requestHeaders = {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
@@ -57,8 +60,10 @@ export class SpaceTradersClient {
             requestHeaders['Authorization'] = `Bearer ${token}`;
         }
 
+        // Exécuter la requête avec rate limiting et retry
         const result = await rateLimiter.enqueue(() =>
             withRetry(async () => {
+                // Pour les requêtes POST/PATCH/PUT, envoyer {} si pas de body
                 const needsBody = ['POST', 'PATCH', 'PUT'].includes(method);
                 const requestBody = body ? JSON.stringify(body) : (needsBody ? '{}' : null);
                 
@@ -84,6 +89,7 @@ export class SpaceTradersClient {
             })
         );
 
+        // Mettre en cache si configuré
         if (method === 'GET' && cacheConfig) {
             const cacheKey = cacheService.generateKey(
                 cacheConfig.category,
@@ -386,4 +392,5 @@ export class SpaceTradersClient {
     }
 }
 
+// Instance singleton
 export const spaceTradersClient = new SpaceTradersClient();
